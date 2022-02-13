@@ -22,6 +22,9 @@ from models.pfld import PFLDInference, AuxiliaryNet
 from pfld.loss import PFLDLoss
 from pfld.utils import AverageMeter
 
+import torch.nn as nn
+
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
@@ -103,8 +106,15 @@ def main(args):
     print_args(args)
 
     # Step 2: model, criterion, optimizer, scheduler
+
+    device_ids= list(range(args.num_gpus))
     pfld_backbone = PFLDInference().to(device)
     auxiliarynet = AuxiliaryNet().to(device)
+
+    if args.num_gpus > 1:
+        pfld_backbone = nn.DataParallel(pfld_backbone)
+        auxiliarynet = nn.DataParallel(auxiliarynet)
+    
     criterion = PFLDLoss()
     optimizer = torch.optim.Adam([{
         'params': pfld_backbone.parameters()
@@ -145,11 +155,18 @@ def main(args):
                                                 optimizer, epoch)
         filename = os.path.join(str(args.snapshot),
                                 "checkpoint_epoch_" + str(epoch) + '.pth.tar')
+        pfld_backbone_state = pfld_backbone.state_dict()
+        auxiliarynet_state = auxiliarynet.state_dict()
+
+        if args.num_gpus > 1:
+            pfld_backbone_state = pfld_backbone.module.state_dict()
+            auxiliarynet_state = auxiliarynet.module.state_dict()
+        
         save_checkpoint(
             {
                 'epoch': epoch,
-                'pfld_backbone': pfld_backbone.state_dict(),
-                'auxiliarynet': auxiliarynet.state_dict()
+                'pfld_backbone': pfld_backbone_state,
+                'auxiliarynet': auxiliarynet_state
             }, filename)
 
         val_loss = validate(wlfw_val_dataloader, pfld_backbone, auxiliarynet,
@@ -170,6 +187,7 @@ def parse_args():
     parser.add_argument('-j', '--workers', default=0, type=int)
     parser.add_argument('--devices_id', default='0', type=str)  #TBD
     parser.add_argument('--test_initial', default='false', type=str2bool)  #TBD
+    parser.add_argument('--num_gpus', default=1, type=int) # If more than 1 GPU, wrap model in torch.DataParallel
 
     # training
     ##  -- optimizer

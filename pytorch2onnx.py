@@ -8,6 +8,8 @@ from models.pfld import PFLDInference
 from torch.autograd import Variable
 import torch
 import onnxsim
+import torch.nn as nn
+
 
 parser = argparse.ArgumentParser(description='pytorch2onnx')
 parser.add_argument('--torch_model',
@@ -19,15 +21,21 @@ parser.add_argument('--onnx_model_sim',
 args = parser.parse_args()
 
 print("=====> load pytorch checkpoint...")
-checkpoint = torch.load(args.torch_model, map_location=torch.device('cpu'))
+device = torch.device('cpu')
+# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# checkpoint = torch.load(args.torch_model, map_location=torch.device('cpu'))
+checkpoint = torch.load(args.torch_model, map_location=device)
+
+# device_ids=[0, 1, 2, 3]
+# pfld_backbone = (nn.DataParallel(PFLDInference(), device_ids)).to(device)
 pfld_backbone = PFLDInference()
 pfld_backbone.load_state_dict(checkpoint['pfld_backbone'])
 print("PFLD bachbone:", pfld_backbone)
 
 print("=====> convert pytorch model to onnx...")
-dummy_input = Variable(torch.randn(1, 3, 112, 112))
-input_names = ["input_1"]
-output_names = ["output_1"]
+dummy_input = Variable(torch.randn(1, 3, 112, 112, device=device))
+input_names = ["input"]
+output_names = ["output"]
 torch.onnx.export(pfld_backbone,
                   dummy_input,
                   args.onnx_model,

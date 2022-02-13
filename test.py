@@ -18,6 +18,7 @@ import torch.backends.cudnn as cudnn
 from dataset.datasets import WLFWDatasets
 
 from models.pfld import PFLDInference
+import torch.nn as nn
 
 cudnn.benchmark = True
 cudnn.determinstic = True
@@ -122,6 +123,8 @@ def validate(wlfw_val_dataloader, pfld_backbone):
 
 def main(args):
     checkpoint = torch.load(args.model_path, map_location=device)
+    # device_ids=[0, 1, 2, 3]
+    # pfld_backbone = (nn.DataParallel(PFLDInference(), device_ids)).to(device)
     pfld_backbone = PFLDInference().to(device)
     pfld_backbone.load_state_dict(checkpoint['pfld_backbone'])
 
